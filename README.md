@@ -1,5 +1,3 @@
 # php72-nginx
 
-debian-stretch-slim
-php7.2.24
-nginx
+dockerfile from image debian-stretch-slim, with php7.2.24 and nginx
