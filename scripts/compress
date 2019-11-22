@@ -1,0 +1,82 @@
+## Compress
+
+set -ex
+
+MISSING_ENV_VARS=""
+[[ -z "${APP_TYPE}" ]] && MISSING_ENV_VARS="${MISSING_ENV_VARS} APP_TYPE"
+
+[[ ! -z "${MISSING_ENV_VARS}" ]] && echo "[ERROR] Missing env variables: ${MISSING_ENV_VARS}" && exit 1
+
+[[ -z "${ASSETS_PRECOMPILE}" ]] && ASSETS_PRECOMPILE="false"
+[[ -z "${PACKAGE_JARS}" ]] && PACKAGE_JARS="false"
+[[ -z "${CLEAN_VENDOR_LIBS}" ]] && CLEAN_VENDOR_LIBS="true"
+[[ -z "${BUILD_TOOL}" ]] && BUILD_TOOL="gradle"
+
+if [[ "$APP_TYPE" == "rails" || "${APP_TYPE}" == "mri" ]]; then
+  env > $PACKAGE_VERSION_FILE
+  BUNDLE_ENTERPRISE__CONTRIBSYS__COM=c3262d8b:85f0bf99 bundle install --path .local
+  if [[ "$PACKAGE_JARS" == "true" ]]; then
+    [[ "${CLEAN_VENDOR_LIBS}" == "true" ]] && rm -rf .jbundler vendor/jars
+    bundle exec jbundle install --vendor
+  fi
+  if [[ "$ASSETS_PRECOMPILE" == "true" ]]; then
+    RAILS_ENV=production bundle exec rake assets:precompile
+  fi
+  bundle package --all
+  bundle install --binstubs --local --deployment --without development:test
+  cat /usr/local/bundle/config
+  mkdir -p pkg
+  ls | grep -vw pkg | grep -v .git | xargs -I {} cp -r {} pkg
+  mkdir ./pkg/.bundle
+  cp /usr/local/bundle/config ./pkg/.bundle/
+fi
+
+
+if [[ "$APP_TYPE" == "java" ]] && [[ "$BUILD_TOOL" == "gradle" ]]; then
+   if [[ -z "${CX_GRADLE_BUILD_COMMAND}" ]]; then
+      ./gradlew clean build
+   else
+      ${CX_GRADLE_BUILD_COMMAND}
+   fi
+   env > $PACKAGE_VERSION_FILE
+   mkdir -p pkg
+   cp ./build/libs/*.jar ./pkg/
+   mkdir -p pkg/etc/${CI_PROJECT_NAME}
+   if [ -d "./build/resources/main" ]; then
+     mv ./build/resources/main/* ./pkg/etc/${CI_PROJECT_NAME}/
+   fi
+fi
+
+if [[ "$APP_TYPE" == "java" ]] && [[ "$BUILD_TOOL" == "maven" ]]; then
+   mvn clean install -DskipTests=true
+   env > $PACKAGE_VERSION_FILE
+   mkdir -p pkg
+   cp ./backend/target/*.war ./pkg/gojek.war
+   mkdir -p pkg/etc/${CI_PROJECT_NAME}
+fi
+
+if [[ "$APP_TYPE" == "scala" ]]; then
+   sbt assembly
+   env > $PACKAGE_VERSION_FILE
+   mkdir -p pkg
+   cp -R ./target/scala-*/*.jar ./pkg/
+fi
+
+if [[ "$APP_TYPE" == "node" ]]; then
+   env > $PACKAGE_VERSION_FILE
+   mkdir -p pkg
+   ls | grep -vw pkg | xargs -I {} cp -r {} pkg
+fi
+
+if [[ "$APP_TYPE" == "php" ]]; then
+   composer install
+   env > $PACKAGE_VERSION_FILE
+   mkdir -p pkg
+   ls | grep -vw pkg | grep -v .git | grep -v node_modules | xargs -I {} cp -rp {} pkg
+fi
+
+if [[ "$APP_TYPE" == "other" ]]; then
+   env > $PACKAGE_VERSION_FILE
+   mkdir -p pkg
+   ls | grep -vw pkg | xargs -I {} cp -r {} pkg
+fi

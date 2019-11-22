@@ -1,0 +1,3 @@
+#!/usr/bin/with-contenv bash
+
+exec /usr/local/sbin/php-fpm -R --nodaemonize --force-stderr --fpm-config /usr/local/etc/php-fpm.conf --pid /var/run/php-fpm.pid
